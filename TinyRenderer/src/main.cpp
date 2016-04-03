@@ -12,29 +12,31 @@ Model *model = NULL;
 const int width = 200;
 const int height = 200;
 
+//
+//  Tutorial 1
 
-void line(Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color) {
-	bool steep = false;
-	if (std::abs(p0.x - p1.x)<std::abs(p0.y - p1.y)) {
-		std::swap(p0.x, p0.y);
-		std::swap(p1.x, p1.y);
-		steep = true;
-	}
-	if (p0.x>p1.x) {
-		std::swap(p0, p1);
-	}
-
-	for (int x = p0.x; x <= p1.x; x++) {
-		float t = (x - p0.x) / (float)(p1.x - p0.x);
-		int y = p0.y*(1. - t) + p1.y*t;
-		if (steep) {
-			image.set(y, x, color);
-		}
-		else {
-			image.set(x, y, color);
-		}
-	}
-}
+//void line(Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color) {
+//	bool steep = false;
+//	if (std::abs(p0.x - p1.x)<std::abs(p0.y - p1.y)) {
+//		std::swap(p0.x, p0.y);
+//		std::swap(p1.x, p1.y);
+//		steep = true;
+//	}
+//	if (p0.x>p1.x) {
+//		std::swap(p0, p1);
+//	}
+//
+//	for (int x = p0.x; x <= p1.x; x++) {
+//		float t = (x - p0.x) / (float)(p1.x - p0.x);
+//		int y = p0.y*(1. - t) + p1.y*t;
+//		if (steep) {
+//			image.set(y, x, color);
+//		}
+//		else {
+//			image.set(x, y, color);
+//		}
+//	}
+//}
 
 // 
 //  Tutorial 2

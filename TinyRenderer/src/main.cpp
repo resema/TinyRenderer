@@ -94,9 +94,25 @@ void triangle(Vec2i *pts, TGAImage &image, TGAColor color) {
 }
 
 int main(int argc, char** argv) {
+	if (2 == argc) {
+		model = new Model(argv[1]);
+	}
+	else {
+		model = new Model("obj/african_head.obj");
+	}
 	TGAImage frame(width, height, TGAImage::RGB);
-	Vec2i pts[3] = { Vec2i(10,10),Vec2i(100,30), Vec2i(190,160) };
-	triangle(pts, frame, TGAColor(200, 100, 150, 0));
+	//Vec2i pts[3] = { Vec2i(10,10),Vec2i(100,30), Vec2i(190,160) };
+	//triangle(pts, frame, TGAColor(200, 100, 150, 0));
+	for (int i = 0; i < model->nfaces(); i++) {
+		std::vector<int> face = model->face(i);
+		Vec2i screen_coords[3];
+		for (int j = 0; j < 3; j++) {
+			Vec3f world_coords = model->vert(face[j]);
+			screen_coords[j] = Vec2i((world_coords.x + 1.)*width / 2., (world_coords.y + 1.)*height / 2.);
+		}
+		triangle(screen_coords, frame, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
+	}
+	
 	frame.flip_vertically(); // to place the origin in the bottom left corner of the image
 	frame.write_tga_file("framebuffer.tga");
 

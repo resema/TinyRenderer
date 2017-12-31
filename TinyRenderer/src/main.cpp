@@ -9,6 +9,7 @@ const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red = TGAColor(255, 0, 0, 255);
 const TGAColor green = TGAColor(0, 255, 0, 255);
 const TGAColor blue = TGAColor(0, 0, 255, 255);
+TGAImage* uvmap = NULL;
 
 Model *model = NULL;
 const int width = 800;
@@ -166,45 +167,45 @@ Vec3f barycentric(Vec3f A, Vec3f B, Vec3f C, Vec3f P) {
 	return Vec3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
 }
 
-void triangle(Vec2i *pts, TGAImage &image, TGAColor color) {
-	Vec2i bboxmin(image.get_width() - 1, image.get_height() - 1);
-	Vec2i bboxmax(0, 0);
-	Vec2i clamp(image.get_width() - 1, image.get_height() - 1);
-	for (int i = 0; i < 3; i++) {
-		for (int j = 0; j < 2; j++) {
-			bboxmin[j] = std::max<int>(0, std::min<int>(bboxmin[j], pts[i][j]));
-			bboxmax[j] = std::min<int>(clamp[j], std::max<int>(bboxmax[j], pts[i][j]));
-		}
-	}
-	Vec2i P;
-	for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
-		for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
-			Vec3f bc_screen = barycentric(pts, P);
-			if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
-			image.set(P.x, P.y, color);
-		}
-	}
-}
+//void triangle(Vec2i *pts, TGAImage &image, TGAColor color) {
+//	Vec2i bboxmin(image.get_width() - 1, image.get_height() - 1);
+//	Vec2i bboxmax(0, 0);
+//	Vec2i clamp(image.get_width() - 1, image.get_height() - 1);
+//	for (int i = 0; i < 3; i++) {
+//		for (int j = 0; j < 2; j++) {
+//			bboxmin[j] = std::max<int>(0, std::min<int>(bboxmin[j], pts[i][j]));
+//			bboxmax[j] = std::min<int>(clamp[j], std::max<int>(bboxmax[j], pts[i][j]));
+//		}
+//	}
+//	Vec2i P;
+//	for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
+//		for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
+//			Vec3f bc_screen = barycentric(pts, P);
+//			if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
+//			image.set(P.x, P.y, color);
+//		}
+//	}
+//}
 
-void triangle(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage &image, TGAColor color) {
-	if (t0.y == t1.y && t0.y == t2.y) return; // I don't care about degenerate triangles
-	if (t0.y > t1.y) std::swap(t0, t1);
-	if (t0.y > t2.y) std::swap(t0, t2);
-	if (t1.y > t2.y) std::swap(t1, t2);
-	int total_height = t2.y - t0.y;
-	for (int i = 0; i < total_height; i++) {
-		bool second_half = i > t1.y - t0.y || t1.y == t0.y;
-		int segment_height = second_half ? t2.y - t1.y : t1.y - t0.y;
-		float alpha = (float)i / total_height;
-		float beta = (float)(i - (second_half ? t1.y - t0.y : 0)) / segment_height;
-		Vec2i A =				t0 + (t2 - t0)*alpha;
-		Vec2i B = second_half ? t1 + (t2 - t1)*beta : t0 + (t1 - t0)*beta;
-		if (A.x > B.x) std::swap(A, B);
-		for (int j = A.x; j <= B.x; j++) {
-			image.set(j, t0.y + i, color);
-		}
-	}
-}
+//void triangle(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage &image, TGAColor color) {
+//	if (t0.y == t1.y && t0.y == t2.y) return; // I don't care about degenerate triangles
+//	if (t0.y > t1.y) std::swap(t0, t1);
+//	if (t0.y > t2.y) std::swap(t0, t2);
+//	if (t1.y > t2.y) std::swap(t1, t2);
+//	int total_height = t2.y - t0.y;
+//	for (int i = 0; i < total_height; i++) {
+//		bool second_half = i > t1.y - t0.y || t1.y == t0.y;
+//		int segment_height = second_half ? t2.y - t1.y : t1.y - t0.y;
+//		float alpha = (float)i / total_height;
+//		float beta = (float)(i - (second_half ? t1.y - t0.y : 0)) / segment_height;
+//		Vec2i A =				t0 + (t2 - t0)*alpha;
+//		Vec2i B = second_half ? t1 + (t2 - t1)*beta : t0 + (t1 - t0)*beta;
+//		if (A.x > B.x) std::swap(A, B);
+//		for (int j = A.x; j <= B.x; j++) {
+//			image.set(j, t0.y + i, color);
+//		}
+//	}
+//}
 
 void triangle(Vec3f *pts, float *zbuffer, TGAImage &image, TGAColor color) {
 	Vec2f bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
@@ -231,6 +232,45 @@ void triangle(Vec3f *pts, float *zbuffer, TGAImage &image, TGAColor color) {
 	}
 }
 
+void triangle(Vec3f *pts, Vec3f *uvs, float *zbuffer, TGAImage &image, TGAImage &uvmap) {
+	Vec2f bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+	Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+	Vec2f texbboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+	Vec2f texbboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+	Vec2f clamp(image.get_width() - 1, image.get_height() - 1);
+	int uv_width = uvmap.get_width();
+	int uv_height = uvmap.get_height();
+	Vec2f texclamp(uv_width-1, uv_height);
+
+	for (int i = 0; i<3; i++) {
+		for (int j = 0; j<2; j++) {
+			bboxmin[j] = std::max(0.f, std::min(bboxmin[j], pts[i][j]));
+			bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
+			texbboxmin[j] = std::max(0.f, std::min(texbboxmin[j], uvs[i][j] * uv_height));
+			texbboxmax[j] = std::min(texclamp[j], std::max(texbboxmax[j], uvs[i][j] * uv_width));
+		}
+	}
+	Vec2f uv_step;
+	uv_step.x = (texbboxmax.x - texbboxmin.x) / (bboxmax.x - bboxmin.x);
+	uv_step.y = (texbboxmax.y - texbboxmin.y) / (bboxmax.y - bboxmin.y);
+
+	Vec3f P;
+	Vec3f T;
+	for (P.x = bboxmin.x, T.x = texbboxmin.x; P.x <= bboxmax.x; P.x++, T.x+=uv_step.x) {
+		for (P.y = bboxmin.y, T.y = texbboxmin.y; P.y <= bboxmax.y; P.y++, T.y+=uv_step.y) {
+			Vec3f bc_screen = barycentric(pts[0], pts[1], pts[2], P);
+			if (bc_screen.x<0 || bc_screen.y<0 || bc_screen.z<0) continue;
+			P.z = 0;
+			TGAColor color = uvmap.get(T.x, T.y);
+			for (int i = 0; i<3; i++) P.z += pts[i][2] * bc_screen[i];
+			if (zbuffer[int(P.x + P.y*width)] < P.z) {
+				zbuffer[int(P.x + P.y*width)] = P.z;
+				image.set(P.x, P.y, color);
+			}
+		}
+	}
+}
+
 Vec3f world2screen(Vec3f v) {
 	return Vec3f(int((v.x + 1.)*width / 2. + .5), int((v.y + 1.)*height / 2. + .5), v.z);
 }
@@ -245,24 +285,25 @@ int main(int argc, char** argv) {
 		model = new Model("obj/african_head.obj");
 	}
 
+	uvmap = new TGAImage();
+	uvmap->read_tga_file("tex/african_head_diffuse.tga");
+	uvmap->flip_vertically();
+
 	float *zbuffer = new float[width*height];
 	for (int i = width*height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
 
 	TGAImage image(width, height, TGAImage::RGB);
-	Vec3f light_dir(0, 0, -1);	// frontal light
 	for (int i = 0; i<model->nfaces(); i++) {
-		std::vector<int> face = model->face(i);
+		std::vector<std::vector<int>> face = model->face(i);
+		Vec3f world_coords[3];
 		Vec3f pts[3];
-		for (int i = 0; i < 3; i++) {
-			pts[i] = world2screen(model->vert(face[i]));
+		Vec3f texs[3];
+		for (int j = 0; j < 3; j++) {
+			world_coords[j] = model->vert(face[j][0]);
+			pts[j] = world2screen(world_coords[j]);
+			texs[j] = model->tex(face[j][1]);
 		}
-		Vec3f n = (pts[2] - pts[0]) ^ (pts[1] - pts[0]);
-		n.normalize();
-		float intensity = n * light_dir;
-		if (intensity > 0) {
-			triangle(pts, zbuffer, image, 
-				TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
-		}
+		triangle(pts, texs, zbuffer, image, *uvmap);
 	}
 
 	image.flip_vertically(); // i want to have the origin at the left bottom corner of the image

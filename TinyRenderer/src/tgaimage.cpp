@@ -147,6 +147,7 @@ bool TGAImage::load_rle_data(std::ifstream &in) {
 	} while (currentpixel < pixelcount);
 	return true;
 }
+
 bool TGAImage::write_tga_file(const char *filename, bool rle) {
 	unsigned char developer_area_ref[4] = { 0, 0, 0, 0 };
 	unsigned char extension_area_ref[4] = { 0, 0, 0, 0 };

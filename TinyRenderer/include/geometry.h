@@ -2,6 +2,9 @@
 #define __GEOMETRY_H__
 
 #include <cmath>
+#include <vector>
+
+class Matrix;
 
 template <class t> struct Vec2 {
 	t x, y;
@@ -26,6 +29,7 @@ template <class t> struct Vec3 {
 	t x, y, z;
 	Vec3<t>() : x(t()), y(t()), z(t()) { }
 	Vec3<t>(t _x, t _y, t _z) : x(_x), y(_y), z(_z) {}
+	Vec3<t>(Matrix m);
 	template <class u> Vec3<t>(const Vec3<u> &v);
 	Vec3<t>(const Vec3<t> &v) : x(t()), y(t()), z(t()) { *this = v; }
 	Vec3<t> & operator =(const Vec3<t> &v) {

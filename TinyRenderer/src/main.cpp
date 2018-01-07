@@ -1,6 +1,7 @@
 #include <vector>
 #include <cmath>
 #include <limits>
+#include <iostream>
 #include "tgaimage.h"
 #include "model.h"
 #include "geometry.h"
@@ -11,8 +12,10 @@ const int depth = 255;
 
 Model *model = NULL;
 int *zbuffer = NULL;
-Vec3f light_dir = Vec3f(-1, -1, 1).normalize();
-Vec3f camera(0, 0, 3);
+Vec3f light_dir = Vec3f(1,-1,1).normalize();
+Vec3f eye(1,1,3);
+Vec3f center(0,0,0);
+//Vec3f camera(0, 0, 3);
 
 Vec3f m2v(Matrix m) {
 	return Vec3f(m[0][0] / m[3][0], m[1][0] / m[3][0], m[2][0] / m[3][0]);
@@ -25,6 +28,20 @@ Matrix v2m(Vec3f v) {
 	m[2][0] = v.z;
 	m[3][0] = 1.f;
 	return m;
+}
+
+Matrix modelview(Vec3f eye, Vec3f center, Vec3f up) {
+    Vec3f z = (eye-center).normalize();
+    Vec3f x = (up^z).normalize();
+    Vec3f y = (z^x).normalize();
+    Matrix mv = Matrix::identity(4);
+    for (int i=0; i<3; i++) {
+        mv[0][i] = x[i];
+        mv[1][i] = y[i];
+        mv[2][i] = z[i];
+        mv[i][3] = -center[i];
+    }
+    return mv;
 }
 
 Matrix viewport(int x, int y, int w, int h) {
@@ -90,7 +107,14 @@ int main(int argc, char** argv) {
 	{ // draw the model
 		Matrix Projection = Matrix::identity(4);
 		Matrix ViewPort = viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
-		Projection[3][2] = -1.f / camera.z;
+		Projection[3][2] = -1.f / (eye-center).norm();
+		Matrix ModelView = modelview(eye, center, Vec3f(0,1,0)); 
+
+		std::cerr << ModelView << std::endl;
+        std::cerr << Projection << std::endl;
+        std::cerr << ViewPort << std::endl;
+        Matrix z = (ViewPort*Projection*ModelView);
+        std::cerr << z << std::endl;
 
 		TGAImage image(width, height, TGAImage::RGB);
 		for (int i = 0; i<model->nfaces(); i++) {
@@ -100,7 +124,7 @@ int main(int argc, char** argv) {
 			float intensity[3];
 			for (int j = 0; j<3; j++) {
 				Vec3f v = model->vert(face[j]);
-				screen_coords[j] = m2v(ViewPort*Projection*v2m(v));
+				screen_coords[j] = Vec3f(ViewPort*Projection*ModelView*Matrix(v));
 				world_coords[j] = v;
 				intensity[j] = model->norm(i, j) * light_dir;
 			}

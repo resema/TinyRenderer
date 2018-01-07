@@ -79,6 +79,7 @@ class Matrix {
 	int rows, cols;
 public:
 	Matrix(int r = DEFAULT_ALLOC, int c = DEFAULT_ALLOC);
+	Matrix(Vec3f v);
 	inline int nrows();
 	inline int ncols();
 

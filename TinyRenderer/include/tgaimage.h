@@ -51,7 +51,9 @@ struct TGAColor {
 		}
 	}
 
-	TGAColor & operator =(const TGAColor &c) {
+	unsigned char& operator[](const int i) { return bgra[i]; }
+
+	TGAColor& operator=(const TGAColor &c) {
 		if (this != &c) {
 			bytespp = c.bytespp;
 			for (int i = 0; i < 4; i++) bgra[i] = c.bgra[i];
@@ -59,7 +61,7 @@ struct TGAColor {
 		return *this;
 	}
 
-	TGAColor operator *(float intensity) const {
+	TGAColor operator*(float intensity) const {
 		TGAColor res = *this;
 		intensity = (intensity > 1.f ? 1.f : (intensity < 0.f ? 0.f : intensity));
 		for (int i = 0; i < 4; i++) res.bgra[i] = bgra[i] * intensity;

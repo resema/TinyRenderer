@@ -22,11 +22,13 @@
     <ClCompile Include="src\geometry.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\model.cpp" />
+    <ClCompile Include="src\our_gl.cpp" />
     <ClCompile Include="src\tgaimage.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\geometry.h" />
     <ClInclude Include="include\model.h" />
+    <ClInclude Include="include\our_gl.h" />
     <ClInclude Include="include\tgaimage.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

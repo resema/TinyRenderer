@@ -96,8 +96,8 @@ Vec3f Model::normal(Vec2f uvf) {
 	return res;
 }
 
-Vec2i Model::uv(int iface, int nvert) {
-	return uv_[faces_[iface][nvert][1]];
+Vec2f Model::uv(int iface, int nthvert) {
+	return uv_[faces_[iface][nthvert][1]];
 }
 
 float Model::specular(Vec2f uvf) {
@@ -105,7 +105,7 @@ float Model::specular(Vec2f uvf) {
 	return specularmap_.get(uv[0], uv[1])[0] / 1.f;
 }
 
-Vec3f Model::normal(int iface, int nvert) {
-	int idx = faces_[iface][nvert][2];
+Vec3f Model::normal(int iface, int nthvert) {
+	int idx = faces_[iface][nthvert][2];
 	return norms_[idx].normalize();
 }

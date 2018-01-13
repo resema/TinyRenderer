@@ -21,11 +21,11 @@ public:
 	~Model();
 	int nverts();
 	int nfaces();
-	Vec3f normal(int iface, int nvert);
+	Vec3f normal(int iface, int nthvert);
 	Vec3f normal(Vec2f uvf);
 	Vec3f vert(int i);
 	Vec3f vert(int iface, int nthvert);
-	Vec2i uv(int iface, int nvert);
+	Vec2f uv(int iface, int nthvert);
 	TGAColor diffuse(Vec2f uvf);
 	float specular(Vec2f uvf);
 	std::vector<int> face(int idx);

@@ -80,7 +80,7 @@ struct TextureShader : public IShader {
 	}
 };
 
-struct Shader : public IShader {
+struct NmShader : public IShader {
 	mat<2,3,float> varying_uv;	// same as above 
 	mat<4,4,float> uniform_M;	// Projection*ModelView
 	mat<4,4,float> uniform_MIT;	// (Projection*ModelView).invert_transpose()
@@ -109,6 +109,50 @@ struct Shader : public IShader {
 	}
 };
 
+struct PhongShader : public IShader {
+	mat<2,3,float> varying_uv;	// same as above 
+	mat<4,4,float> uniform_M;	// Projection*ModelView
+	mat<4,4,float> uniform_MIT;	// (Projection*ModelView).invert_transpose()
+
+	virtual Vec4f vertex(int iface, int nthvert) {
+		// set 2x3 matrix with vertices idx (0..2) and uv-values (Vec2f)
+		varying_uv.set_col(nthvert, model->uv(iface,nthvert));
+		// read the vertex from .obj file
+		Vec4f gl_Vertex = embed<4>(model->vert(iface, nthvert));
+		//transform it to screen coordinates
+		return Viewport * Projection * ModelView * gl_Vertex;
+	}
+
+	virtual bool fragment(Vec3f bar, TGAColor &color) {
+		// calculate uv values for the current pixel
+		Vec2f uv = varying_uv * bar;
+		Vec3f n = proj<3>(uniform_MIT * embed<4>(model->normal(uv))).normalize();
+		Vec3f l = proj<3>(uniform_M   * embed<4>(light_dir		  )).normalize();
+		// reflected light
+		//  (n * l * 2.f) is the lenght of the vector normal to the surface with twice 
+		//   the lenght of the light vector projected onto the normal vector
+		//  multiply this length with the normal vector and subtract the light vector
+		//   to get the final reflected light vector
+		//  http://www.3dkingdoms.com/weekly/weekly.php?a=2
+		Vec3f r = (n * (n * l * 2.f) - l).normalize();
+		// calculate diffuse light intensity
+		float diff = std::max(0.f, n * l);
+		// calculate specular light intensity
+		float spec = pow(std::max(r.z, 0.0f), model->specular(uv));
+		// get normalmap color
+		TGAColor c = model->diffuse(uv);
+		color = c;
+		// calculate the color
+		for (int i = 0; i < 3; i++) {
+			// 5 is the ambient component
+			color[i] = std::min<float>(5 + c[i] * (diff + 0.6 * spec), 255);
+		}
+		// no, we do not discard this pixel
+		return false;
+
+	}
+};
+
 int main(int argc, char** argv) {
 	if (2 == argc) {
 		model = new Model(argv[1]);
@@ -128,7 +172,8 @@ int main(int argc, char** argv) {
 	// GouraudShader shader;
 	// GShaderMod shader;
 	// TextureShader shader;
-	Shader shader;
+	// NmShader shader;
+	PhongShader shader;
 	shader.uniform_M = Projection * ModelView;
 	shader.uniform_MIT = (Projection * ModelView).invert_transpose();
 

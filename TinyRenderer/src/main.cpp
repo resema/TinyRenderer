@@ -16,137 +16,30 @@ Vec3f eye{ 1,1,3 };
 Vec3f center{ 0,0,0 };
 Vec3f up{ 0,1,0 };
 
-struct GouraudShader : public IShader {
-	Vec3f varying_intensity; // written by vertex shader, read by fragment shader
-
-	virtual Vec4f vertex(int iface, int nthvert) {
-		// get diffuse lighting intensity
-		varying_intensity[nthvert] = std::max(0.f, model->normal(iface, nthvert) * light_dir); 
-		// read the vertex from .obj file
-		Vec4f gl_Vertex = embed<4>(model->vert(iface, nthvert));
-		//transform it to screen coordinates
-		return Viewport * Projection * ModelView * gl_Vertex;
-	}
-
-	virtual bool fragment(Vec3f bar, TGAColor &color) {
-		// interpolate intensity for the current pixel
-		float intensity = varying_intensity * bar;
-		// calculate current color
-		color = TGAColor(255, 255, 255) * intensity;
-		// no, we do not discard this pixel
-		return false;
-	}
-};
-
-struct GShaderMod : public GouraudShader {
-	virtual bool fragment(Vec3f bar, TGAColor &color) {
-		float intensity = varying_intensity * bar;
-		if (intensity > .85) intensity = 1;
-		else if (intensity > .60) intensity = .80;
-		else if (intensity > .45) intensity = .60;
-		else if (intensity > .30) intensity = .45;
-		else if (intensity > .15) intensity = .30;
-		else intensity = 0;
-		color = TGAColor(255, 155, 0) * intensity;
-		return false;
-	}
-};
-
-struct TextureShader : public IShader {
-	Vec3f varying_intensity; 	// written by vertex shader, read by fragment shader
-	mat<2,3,float> varying_uv;	// same as above 
+struct Shader : public IShader {
+	mat<2, 3, float> varying_uv;	// same as above 
+	mat<3, 3, float> varying_nrm;	// normal per vertex to be interpolated by FS
+	mat<4, 3, float> varying_tri;
 
 	virtual Vec4f vertex(int iface, int nthvert) {
 		// set 2x3 matrix with vertices idx (0..2) and uv-values (Vec2f)
-		varying_uv.set_col(nthvert, model->uv(iface,nthvert));
-		// get diffuse lighting intensity
-		varying_intensity[nthvert] = std::max(0.f, model->normal(iface, nthvert) * light_dir); 
+		varying_uv.set_col(nthvert, model->uv(iface, nthvert));
+		varying_nrm.set_col(nthvert, proj<3>((Projection * ModelView).invert_transpose()
+							* embed<4>(model->normal(iface, nthvert), 0.f)));
 		// read the vertex from .obj file
-		Vec4f gl_Vertex = embed<4>(model->vert(iface, nthvert));
-		//transform it to screen coordinates
-		return Viewport * Projection * ModelView * gl_Vertex;
+		Vec4f gl_Vertex = Projection * ModelView * embed<4>(model->vert(iface, nthvert));
+		varying_tri.set_col(nthvert, gl_Vertex);
+		// return vertex coordinates
+		return gl_Vertex;
 	}
 
 	virtual bool fragment(Vec3f bar, TGAColor &color) {
-		// interpolate intensity for the current pixel
-		float intensity = varying_intensity * bar;
-		// calculate uv values for the current pixel
+		Vec3f bn = (varying_nrm * bar).normalize();
 		Vec2f uv = varying_uv * bar;
-		// calculate current color
-		color = model->diffuse(uv) * intensity;
-		// no, we do not discard this pixel
-		return false;
 
-	}
-};
+		float diff = std::max(0.f, bn * light_dir);
+		color = model->diffuse(uv) * diff;
 
-struct NmShader : public IShader {
-	mat<2,3,float> varying_uv;	// same as above 
-	mat<4,4,float> uniform_M;	// Projection*ModelView
-	mat<4,4,float> uniform_MIT;	// (Projection*ModelView).invert_transpose()
-
-	virtual Vec4f vertex(int iface, int nthvert) {
-		// set 2x3 matrix with vertices idx (0..2) and uv-values (Vec2f)
-		varying_uv.set_col(nthvert, model->uv(iface,nthvert));
-		// read the vertex from .obj file
-		Vec4f gl_Vertex = embed<4>(model->vert(iface, nthvert));
-		//transform it to screen coordinates
-		return Viewport * Projection * ModelView * gl_Vertex;
-	}
-
-	virtual bool fragment(Vec3f bar, TGAColor &color) {
-		// calculate uv values for the current pixel
-		Vec2f uv = varying_uv * bar;
-		Vec3f n = proj<3>(uniform_MIT * embed<4>(model->normal(uv))).normalize();
-		Vec3f l = proj<3>(uniform_M   * embed<4>(light_dir		  )).normalize();
-		// calculate light intensity
-		float intensity = std::max(0.f, n * l);
-		// calculate current color
-		color = model->diffuse(uv) * intensity;
-		// no, we do not discard this pixel
-		return false;
-
-	}
-};
-
-struct PhongShader : public IShader {
-	mat<2,3,float> varying_uv;	// same as above 
-	mat<4,4,float> uniform_M;	// Projection*ModelView
-	mat<4,4,float> uniform_MIT;	// (Projection*ModelView).invert_transpose()
-
-	virtual Vec4f vertex(int iface, int nthvert) {
-		// set 2x3 matrix with vertices idx (0..2) and uv-values (Vec2f)
-		varying_uv.set_col(nthvert, model->uv(iface,nthvert));
-		// read the vertex from .obj file
-		Vec4f gl_Vertex = embed<4>(model->vert(iface, nthvert));
-		//transform it to screen coordinates
-		return Viewport * Projection * ModelView * gl_Vertex;
-	}
-
-	virtual bool fragment(Vec3f bar, TGAColor &color) {
-		// calculate uv values for the current pixel
-		Vec2f uv = varying_uv * bar;
-		Vec3f n = proj<3>(uniform_MIT * embed<4>(model->normal(uv))).normalize();
-		Vec3f l = proj<3>(uniform_M   * embed<4>(light_dir		  )).normalize();
-		// reflected light
-		//  (n * l * 2.f) is the lenght of the vector normal to the surface with twice 
-		//   the lenght of the light vector projected onto the normal vector
-		//  multiply this length with the normal vector and subtract the light vector
-		//   to get the final reflected light vector
-		//  http://www.3dkingdoms.com/weekly/weekly.php?a=2
-		Vec3f r = (n * (n * l * 2.f) - l).normalize();
-		// calculate diffuse light intensity
-		float diff = std::max(0.f, n * l);
-		// calculate specular light intensity
-		float spec = pow(std::max(r.z, 0.0f), model->specular(uv));
-		// get normalmap color
-		TGAColor c = model->diffuse(uv);
-		color = c;
-		// calculate the color
-		for (int i = 0; i < 3; i++) {
-			// 5 is the ambient component
-			color[i] = std::min<float>(5 + c[i] * (diff + 0.6 * spec), 255);
-		}
 		// no, we do not discard this pixel
 		return false;
 
@@ -154,42 +47,33 @@ struct PhongShader : public IShader {
 };
 
 int main(int argc, char** argv) {
-	if (2 == argc) {
-		model = new Model(argv[1]);
-	}
-	else {
-		model = new Model("obj/african_head.obj");
+	if (2 > argc) {
+		std::cerr << "Usage: " << argv[0] << " obj/model.obj" << std::endl;
+        return 1;
 	}
 
+	float *zbuffer = new float[width*height];
+	for (int i = width * height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
+
+	TGAImage frame(width, height, TGAImage::RGB);
 	lookat(eye, center, up);
 	viewport(width/8, height/8, width*3/4, height*3/4);
 	projection(-1.f / (eye - center).norm());
-	light_dir.normalize();
+	light_dir = proj<3>((Projection * ModelView * embed<4>(light_dir, 0.f))).normalize();
 
-	TGAImage   image(width, height, TGAImage::RGB);
-	TGAImage zbuffer(width, height, TGAImage::GRAYSCALE);
-
-	// GouraudShader shader;
-	// GShaderMod shader;
-	// TextureShader shader;
-	// NmShader shader;
-	PhongShader shader;
-	shader.uniform_M = Projection * ModelView;
-	shader.uniform_MIT = (Projection * ModelView).invert_transpose();
-
-	for (int i = 0; i < model->nfaces(); i++) {
-		Vec4f screen_coords[3];
-		for (int j = 0; j < 3; j++) {
-			screen_coords[j] = shader.vertex(i, j);
+	for (int m = 1; m < argc; m++) {
+		model = new Model(argv[m]);
+		Shader shader;
+		for (int i = 0; i < model->nfaces(); i++) {
+			for (int j = 0; j < 3; j++) {
+				shader.vertex(i, j);
+			}
+			triangle(shader.varying_tri, shader, frame, zbuffer);
 		}
-		triangle(screen_coords, shader, image, zbuffer);
+		delete model;
 	}
 
-	image.flip_vertically();
-	zbuffer.flip_vertically();
-	image.write_tga_file("output.tga");
-	zbuffer.write_tga_file("zbuffer.tga");
-
-	delete model;
+	frame.flip_vertically();
+	frame.write_tga_file("framebuffer.tga");
 	return 0;
 }

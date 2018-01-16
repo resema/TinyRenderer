@@ -25,7 +25,7 @@ struct Shader : public IShader {
 		// set 2x3 matrix with vertices idx (0..2) and uv-values (Vec2f)
 		varying_uv.set_col(nthvert, model->uv(iface, nthvert));
 		varying_nrm.set_col(nthvert, proj<3>((Projection * ModelView).invert_transpose()
-							* embed<4>(model->normal(iface, nthvert), 0.f)));
+										* embed<4>(model->normal(iface, nthvert), 0.f)));
 		// read the vertex from .obj file
 		Vec4f gl_Vertex = Projection * ModelView * embed<4>(model->vert(iface, nthvert));
 		varying_tri.set_col(nthvert, gl_Vertex);
@@ -42,7 +42,6 @@ struct Shader : public IShader {
 
 		// no, we do not discard this pixel
 		return false;
-
 	}
 };
 
@@ -64,7 +63,9 @@ int main(int argc, char** argv) {
 	for (int m = 1; m < argc; m++) {
 		model = new Model(argv[m]);
 		Shader shader;
+		// for each face
 		for (int i = 0; i < model->nfaces(); i++) {
+			// for each vertex of current face
 			for (int j = 0; j < 3; j++) {
 				shader.vertex(i, j);
 			}

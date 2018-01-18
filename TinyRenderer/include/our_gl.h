@@ -6,6 +6,7 @@
 
 extern Matrix ModelView;
 extern Matrix Projection;
+extern mat<3,3,float> Darboux;
 
 void viewport(int x, int y, int w, int h);
 void projection(float coeff = 0.f);		// coeff = -1/c

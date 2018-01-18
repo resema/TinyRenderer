@@ -7,6 +7,7 @@
 Matrix ModelView;
 Matrix Viewport;
 Matrix Projection;
+mat<3,3,float> Darboux;
 
 IShader::~IShader() {}
 
@@ -57,6 +58,43 @@ Vec3f barycentric(Vec2f A, Vec2f B, Vec2f C, Vec2f P)
 	return Vec3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
 }
 
+// helper function
+void line(float x0, float y0, float x1, float y1, TGAImage &image, TGAColor color) {
+	bool steep = false;
+	if (std::abs(x0 - x1)<std::abs(y0 - y1)) { // if the line is steep, we transpose the image 
+		std::swap(x0, y0);
+		std::swap(x1, y1);
+		steep = true;
+	}
+	if (x0>x1) { // make it left?to?right 
+		std::swap(x0, x1);
+		std::swap(y0, y1);
+	}
+	x0 *= image.get_width();
+	y0 *= image.get_height();
+	x1 *= image.get_width();
+	y1 *= image.get_height();
+	for (int x = x0; x <= x1; x++) {
+		float t = (x - x0) / (float)(x1 - x0);
+		int y = y0*(1. - t) + y1*t;
+		if (steep) {
+			image.set(y, x, color); // if transposed, de?transpose 
+		}
+		else {
+			image.set(x, y, color);
+		}
+	}
+}
+
+void point(float x, float y, int r, TGAImage &image, TGAColor color) {
+	int c_x = (int)(x * image.get_width());
+	int c_y = (int)(y * image.get_height());
+
+	for (int i = -r/2; i < r/2; i++) {
+		image.set(c_x + i, c_y + i, color);
+	}
+}
+
 //
 // Rasterizer
 void triangle(mat<4,3,float> &clipc, IShader &shader, TGAImage &image, float *zbuffer)
@@ -91,4 +129,9 @@ void triangle(mat<4,3,float> &clipc, IShader &shader, TGAImage &image, float *zb
 			}
 		}
 	}
+
+	point(Darboux[0][0], Darboux[1][0], 4, image, TGAColor(255, 255, 0));
+	point(Darboux[0][1], Darboux[1][2], 4, image, TGAColor(0, 255, 255));
+	//line(Darboux[0][2], Darboux[1][2], Darboux[0][0], Darboux[1][0], image, TGAColor(255, 255, 0));
+	//line(Darboux[0][2], Darboux[1][2], Darboux[0][1], Darboux[1][1], image, TGAColor(0, 255, 255));
 }

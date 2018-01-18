@@ -62,6 +62,10 @@ struct Shader : public IShader {
 		// transform from Darboux to world coordinates
 		Vec3f n = (B * model->normal(uv)).normalize();
 
+		Darboux.set_col(0, i.normalize());
+		Darboux.set_col(1, j.normalize());
+		Darboux.set_col(2, n);
+
 		// float diff = std::max(0.f, bn * light_dir);
 		float diff = std::max(0.f, n * light_dir);
 		color = model->diffuse(uv) * diff;

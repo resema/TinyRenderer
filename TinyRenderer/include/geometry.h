@@ -186,6 +186,12 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////////
 
+template<size_t DimRows,typename T> vec<DimRows,T> operator^(const vec<DimRows,T>& lhs, const vec<DimRows,T>& rhs) {
+    vec<DimRows,T> ret;
+    for (size_t i=DimRows; i--; ret[i]=lhs[i]*rhs[i]);
+    return ret;
+}
+
 template<size_t DimRows,size_t DimCols,typename T> vec<DimRows,T> operator*(const mat<DimRows,DimCols,T>& lhs, const vec<DimCols,T>& rhs) {
     vec<DimRows,T> ret;
     for (size_t i=DimRows; i--; ret[i]=lhs[i]*rhs);

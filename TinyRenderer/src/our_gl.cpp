@@ -70,15 +70,11 @@ void line(float x0, float y0, float x1, float y1, TGAImage &image, TGAColor colo
 		std::swap(x0, x1);
 		std::swap(y0, y1);
 	}
-	x0 *= image.get_width();
-	y0 *= image.get_height();
-	x1 *= image.get_width();
-	y1 *= image.get_height();
-	for (int x = x0; x <= x1; x++) {
+	for (int x = x1-10; x <= x1; x++) {
 		float t = (x - x0) / (float)(x1 - x0);
 		int y = y0*(1. - t) + y1*t;
 		if (steep) {
-			image.set(y, x, color); // if transposed, de?transpose 
+			image.set(y, x, color); // if transposed, de'transpose 
 		}
 		else {
 			image.set(x, y, color);
@@ -87,11 +83,13 @@ void line(float x0, float y0, float x1, float y1, TGAImage &image, TGAColor colo
 }
 
 void point(float x, float y, int r, TGAImage &image, TGAColor color) {
-	int c_x = (int)(x * image.get_width());
-	int c_y = (int)(y * image.get_height());
+	// int c_x = (int)(x * image.get_width());
+	// int c_y = (int)(y * image.get_height());
 
-	for (int i = -r/2; i < r/2; i++) {
-		image.set(c_x + i, c_y + i, color);
+	for (int v = -r/2; v < r/2; v++) {
+		for (int h = -r/2; h < r/2; h++) {
+			image.set(x + h, y + v, color);
+		}
 	}
 }
 
@@ -115,6 +113,7 @@ void triangle(mat<4,3,float> &clipc, IShader &shader, TGAImage &image, float *zb
 	}
 	Vec2i P;
 	TGAColor color;
+	// TGAColor rcolor = TGAColor(rand()%255, rand()%255, rand()%255, 255);
 	for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
 		for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
 			Vec3f bc_screen = barycentric(pts2[0], pts2[1], pts2[2], P);
@@ -126,12 +125,14 @@ void triangle(mat<4,3,float> &clipc, IShader &shader, TGAImage &image, float *zb
 			if (!discard) {
 				zbuffer[P.x + P.y * image.get_width()] = frag_depth;
 				image.set(P.x, P.y, color);
+				// image.set(P.x, P.y, rcolor);
 			}
 		}
 	}
 
-	point(Darboux[0][0], Darboux[1][0], 4, image, TGAColor(255, 255, 0));
-	point(Darboux[0][1], Darboux[1][2], 4, image, TGAColor(0, 255, 255));
-	//line(Darboux[0][2], Darboux[1][2], Darboux[0][0], Darboux[1][0], image, TGAColor(255, 255, 0));
-	//line(Darboux[0][2], Darboux[1][2], Darboux[0][1], Darboux[1][1], image, TGAColor(0, 255, 255));
+	point(Darboux[0][0], Darboux[1][0], 3, image, TGAColor(0, 255, 255));	// triangle center
+	point(Darboux[0][1], Darboux[1][1], 1, image, TGAColor(255, 255, 0));	// triangle normal end point
+	point(Darboux[0][2], Darboux[1][2], 1, image, TGAColor(255, 255, 0));	// triangle normal end point
+	line(Darboux[0][0], Darboux[1][0], Darboux[0][1], Darboux[1][1], image, TGAColor(200, 0, 0));
+	line(Darboux[0][0], Darboux[1][0], Darboux[0][2], Darboux[1][2], image, TGAColor(0, 0, 200));
 }

@@ -62,9 +62,38 @@ struct Shader : public IShader {
 		// transform from Darboux to world coordinates
 		Vec3f n = (B * model->normal(uv)).normalize();
 
-		Darboux.set_col(0, i.normalize());
-		Darboux.set_col(1, j.normalize());
-		Darboux.set_col(2, n);
+		// calculate base coordinate system
+		Vec4f h_i = embed<4>(i, 0.f);
+		Vec4f h_j = embed<4>(j, 0.f);
+		// calculate triangle center
+		mat<3,4,float> pts = (Viewport * varying_tri).transpose();
+		mat<3,3,float> trian;
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 2; j++) {
+				trian[i][j] = pts[i][j] / pts[i][3];
+			}
+		}
+		Vec3f center;
+		for (int i = 0; i < 3; i++) 
+			center[i] = (trian[0][i] + trian[1][i] + trian[2][i]) / 3;
+		Vec4f h_c = embed<4>(center);
+		for (int i = 0; i < 2; i++) {
+			h_i[i] *= 10;
+			h_j[i] *= 10;
+		}
+		Vec4f h_pi = h_c + h_i;
+		Vec4f h_pj = h_c + h_j;
+		Vec4f vp_pi = h_pi;
+		Vec4f vp_pj = h_pj;
+		Vec3f pi;
+		Vec3f pj;
+		for (int i = 0; i < 3; i++) {
+			pi[i] = vp_pi[i] / vp_pi[3];
+			pj[i] = vp_pj[i] / vp_pj[3];
+		}
+		Darboux.set_col(0, center);
+		Darboux.set_col(1, pi);
+		Darboux.set_col(2, pj);
 
 		// float diff = std::max(0.f, bn * light_dir);
 		float diff = std::max(0.f, n * light_dir);

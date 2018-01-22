@@ -7,7 +7,6 @@
 Matrix ModelView;
 Matrix Viewport;
 Matrix Projection;
-mat<3,3,float> Darboux;
 
 IShader::~IShader() {}
 
@@ -16,10 +15,10 @@ void viewport(int x, int y, int w, int h)
 	Viewport = Matrix::identity();
 	Viewport[0][3] = x + w / 2.f;
 	Viewport[1][3] = y + h / 2.f;
-	Viewport[2][3] = 1.f;
+	Viewport[2][3] = depth / 2.f;
 	Viewport[0][0] = w / 2.f;
 	Viewport[1][1] = h / 2.f;
-	Viewport[2][2] = 0;
+	Viewport[2][2] = depth / 2.f;
 }
 
 void projection(float coeff)
@@ -58,81 +57,32 @@ Vec3f barycentric(Vec2f A, Vec2f B, Vec2f C, Vec2f P)
 	return Vec3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
 }
 
-// helper function
-void line(float x0, float y0, float x1, float y1, TGAImage &image, TGAColor color) {
-	bool steep = false;
-	if (std::abs(x0 - x1)<std::abs(y0 - y1)) { // if the line is steep, we transpose the image 
-		std::swap(x0, y0);
-		std::swap(x1, y1);
-		steep = true;
-	}
-	if (x0>x1) { // make it left?to?right 
-		std::swap(x0, x1);
-		std::swap(y0, y1);
-	}
-	for (int x = x1-10; x <= x1; x++) {
-		float t = (x - x0) / (float)(x1 - x0);
-		int y = y0*(1. - t) + y1*t;
-		if (steep) {
-			image.set(y, x, color); // if transposed, de'transpose 
-		}
-		else {
-			image.set(x, y, color);
-		}
-	}
-}
-
-void point(float x, float y, int r, TGAImage &image, TGAColor color) {
-	// int c_x = (int)(x * image.get_width());
-	// int c_y = (int)(y * image.get_height());
-
-	for (int v = -r/2; v < r/2; v++) {
-		for (int h = -r/2; h < r/2; h++) {
-			image.set(x + h, y + v, color);
-		}
-	}
-}
-
 //
 // Rasterizer
-void triangle(mat<4,3,float> &clipc, IShader &shader, TGAImage &image, float *zbuffer)
+void triangle(Vec4f *pts, IShader &shader, TGAImage &image, float *zbuffer)
 {
-	mat<3,4,float> pts = (Viewport * clipc).transpose();
-	mat<3,2,float> pts2;
-	for (int i = 0; i < 3; i++)
-		pts2[i] = proj<2>(pts[i] / pts[i][3]);
-
 	Vec2f bboxmin( std::numeric_limits<float>::max(),  std::numeric_limits<float>::max());
 	Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
-	Vec2f clamp(image.get_width() - 1, image.get_height() - 1);
 	for (int i = 0; i < 3; i++) {
 		for (int j = 0; j < 2; j++) {
-			bboxmin[j] = std::max(0.f,      std::min(bboxmin[j], pts[i][j] / pts[i][3]));
-			bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j] / pts[i][3]));
+			bboxmin[j] = std::min(bboxmin[j], pts[i][j] / pts[i][3]);
+			bboxmax[j] = std::max(bboxmax[j], pts[i][j] / pts[i][3]);
 		}
 	}
 	Vec2i P;
 	TGAColor color;
-	// TGAColor rcolor = TGAColor(rand()%255, rand()%255, rand()%255, 255);
 	for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
 		for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
-			Vec3f bc_screen = barycentric(pts2[0], pts2[1], pts2[2], P);
-			Vec3f bc_clip   = Vec3f(bc_screen.x / pts[0][3], bc_screen.y / pts[1][3], bc_screen.z / pts[2][3]);
-			bc_clip = bc_clip / (bc_clip.x + bc_clip.y + bc_clip.z);
-			float frag_depth = clipc[2] * bc_clip;
-			if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0 || zbuffer[P.x + P.y * image.get_width()] > frag_depth) continue;
-			bool discard = shader.fragment(bc_clip, color);
+			Vec3f c = barycentric(proj<2>(pts[0] / pts[0][3]), proj<2>(pts[1] / pts[0][3]), proj<2>(pts[2] / pts[0][3]), P);
+			float z = pts[0][2] * c.x + pts[1][2] * c.y + pts[2][2] * c.z;
+			float w = pts[0][3] * c.x + pts[1][3] * c.y + pts[2][3] * c.z;
+			int frag_depth = z / w;
+			if (c.x < 0 || c.y < 0 || c.z < 0 || zbuffer[P.x + P.y * image.get_width()] > frag_depth) continue;
+			bool discard = shader.fragment(c, color);
 			if (!discard) {
 				zbuffer[P.x + P.y * image.get_width()] = frag_depth;
 				image.set(P.x, P.y, color);
-				// image.set(P.x, P.y, rcolor);
 			}
 		}
 	}
-
-	point(Darboux[0][0], Darboux[1][0], 3, image, TGAColor(0, 255, 255));	// triangle center
-	point(Darboux[0][1], Darboux[1][1], 1, image, TGAColor(255, 255, 0));	// triangle normal end point
-	point(Darboux[0][2], Darboux[1][2], 1, image, TGAColor(255, 255, 0));	// triangle normal end point
-	line(Darboux[0][0], Darboux[1][0], Darboux[0][1], Darboux[1][1], image, TGAColor(200, 0, 0));
-	line(Darboux[0][0], Darboux[1][0], Darboux[0][2], Darboux[1][2], image, TGAColor(0, 0, 200));
 }

@@ -8,7 +8,6 @@
 #include "our_gl.h"
 
 Model *model = NULL;
-float *shadowbuffer = NULL;
 
 const int width = 800;
 const int height = 800;
@@ -46,15 +45,16 @@ int main(int argc, char** argv) {
         return 1;
 	}
 
-	shadowbuffer = new float[width*height];
+	float *zbuffer = new float[width*height];
+	float *shadowbuffer = new float[width*height];
 	for (int i = width*height; --i; ) {
-		shadowbuffer[i] = -std::numeric_limits<float>::max();
+		zbuffer[i] = shadowbuffer[i] = -std::numeric_limits<float>::max();
 	}
 
 	model = new Model(argv[1]);
 	light_dir.normalize();
 
-	// rendering the shadow buffer
+	// First Pass: rendering the shadow buffer
 	{
 		TGAImage depth(width, height, TGAImage::RGB);
 		lookat(light_dir, center, up);
@@ -72,6 +72,8 @@ int main(int argc, char** argv) {
 		depth.flip_vertically();
 		depth.write_tga_file("depth.tga");
 	}
+
+	// Second Pass: 
 
 	//float *zbuffer = new float[width*height];
 	//for (int i = width * height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
@@ -100,7 +102,7 @@ int main(int argc, char** argv) {
 	//frame.write_tga_file("framebuffer.tga");
 
 	delete model;
-	delete[] shadowbuffer;
-	//delete [] zbuffer;
+	delete [] shadowbuffer;
+	delete [] zbuffer;
 	return 0;
 }

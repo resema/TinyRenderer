@@ -8,6 +8,7 @@
 #include "our_gl.h"
 
 Model *model = NULL;
+float *shadowbuffer = NULL;
 
 const int width = 800;
 const int height = 800;
@@ -39,6 +40,34 @@ struct DepthShader : public IShader {
 	}
 };
 
+struct Shader : public IShader {
+	mat<4, 4, float> uniform_M;			// Projection * ModelView
+	mat<4, 4, float> uniform_MIT;		// (Projection * ModelView).invert_transpose()
+	mat<4, 4, float> uniform_Mshadow;	// transform framebuffer screen coordinates to shadowbuffer screen coordinates
+	mat<2, 3, float> varying_uv;		// triangle uv coordinates, written by the VS read by the FS
+	mat<3, 3, float> varying_tri;		// triangle coordinates before Viewport transform, written by VS, read by FS
+
+	Shader(Matrix M, Matrix MIT, Matrix MS) : uniform_M(M), uniform_MIT(MIT), uniform_Mshadow(MS) {}
+
+	virtual Vec4f vertex(int iface, int nthvert) {
+		varying_uv.set_col(nthvert, model->uv(iface, nthvert));
+		Vec4f gl_Vertex = Viewport * Projection * ModelView * embed<4>(model->vert(iface, nthvert));
+		varying_tri.set_col(nthvert, proj<3>(gl_Vertex / gl_Vertex[3]));
+		return gl_Vertex;
+	}
+
+	virtual bool fragment(Vec3f bar, TGAColor &color) {
+		// corresponding point in the shadow buffer
+		Vec4f sb_p = uniform_Mshadow * embed<4>(varying_tri * bar);
+		sb_p = sb_p / sb_p[3];
+		// index in the shadowbuffer array
+		int idx = int(sb_p[0]) + int(sb_p[1]) * width;
+		// magic coeff to avoid z-fighting
+		float shadow = 0.3 + 0.7 * (shadowbuffer[idx] < sb_p[2]);
+
+	}
+};
+
 int main(int argc, char** argv) {
 	if (2 > argc) {
 		std::cerr << "Usage: " << argv[0] << " obj/model.obj" << std::endl;
@@ -46,7 +75,7 @@ int main(int argc, char** argv) {
 	}
 
 	float *zbuffer = new float[width*height];
-	float *shadowbuffer = new float[width*height];
+	shadowbuffer = new float[width*height];		// defined globally -> used in the fragmetn shader
 	for (int i = width*height; --i; ) {
 		zbuffer[i] = shadowbuffer[i] = -std::numeric_limits<float>::max();
 	}
@@ -59,7 +88,7 @@ int main(int argc, char** argv) {
 		TGAImage depth(width, height, TGAImage::RGB);
 		lookat(light_dir, center, up);
 		viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
-		projection(0);  // orthogonal projection
+		projection(0); // r = -1/(eye-center).norm()) = 0 is a orthogonal projection
 
 		DepthShader depthshader;
 		Vec4f screen_coords[3];

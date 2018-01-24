@@ -64,7 +64,22 @@ struct Shader : public IShader {
 		int idx = int(sb_p[0]) + int(sb_p[1]) * width;
 		// magic coeff to avoid z-fighting
 		float shadow = 0.3 + 0.7 * (shadowbuffer[idx] < sb_p[2]);
-
+		// interpolate uv for current pixel
+		Vec2f uv = varying_uv * bar;
+		// normal
+		Vec3f n = proj<3>(uniform_MIT * embed<4>(model->normal(uv))).normalize();
+		// light vector
+		Vec3f l = proj<3>(uniform_M * embed<4>(light_dir)).normalize();
+		// reflected light
+		Vec3f r = (n * (n * l * 2.f) - l).normalize();
+		// specular reflection
+		float spec = pow(std::max(r.z, 0.f), model->specular(uv));
+		// diffuse lighting
+		float diff = std::max(0.f, n*l);
+		TGAColor c = model->diffuse(uv);
+		for (int i = 0; i < 3; i++)
+			color[i] = std::min<float>(20 + c[i] * shadow * (1.2 * diff + 0.6 * spec), 255);
+		return false;
 	}
 };
 
@@ -102,20 +117,16 @@ int main(int argc, char** argv) {
 		depth.write_tga_file("depth.tga");
 	}
 
+	Matrix M = Viewport * Projection * ModelView;
+
 	// Second Pass: 
+	{
+		TGAImage frame(width, height, TGAImage::RGB);
+		lookat(eye, center, up);
+		viewport(width/8, height/8, width*3/4, height*3/4);
+		projection(-1.f / (eye - center).norm());
 
-	//float *zbuffer = new float[width*height];
-	//for (int i = width * height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
-
-	//TGAImage frame(width, height, TGAImage::RGB);
-	//lookat(eye, center, up);
-	//viewport(width/8, height/8, width*3/4, height*3/4);
-	//projection(-1.f / (eye - center).norm());
-	//light_dir = proj<3>((Projection * ModelView * embed<4>(light_dir, 0.f))).normalize();
-
-	//for (int m = 1; m < argc; m++) {
-	//	model = new Model(argv[m]);
-	//	Shader shader;
+		Shader shader(ModelView, (Projection*ModelView).invert_transpose(), M * M.invert());
 	//	// for each face
 	//	for (int i = 0; i < model->nfaces(); i++) {
 	//		// for each vertex of current face
@@ -124,11 +135,10 @@ int main(int argc, char** argv) {
 	//		}
 	//		triangle(shader.varying_tri, shader, frame, zbuffer);
 	//	}
-	//	delete model;
-	//}
 
-	//frame.flip_vertically();
-	//frame.write_tga_file("framebuffer.tga");
+	//	frame.flip_vertically();
+	//	frame.write_tga_file("framebuffer.tga");
+		}
 
 	delete model;
 	delete [] shadowbuffer;

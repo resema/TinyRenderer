@@ -73,7 +73,7 @@ void triangle(Vec4f *pts, IShader &shader, TGAImage &image, float *zbuffer)
 	TGAColor color;
 	for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
 		for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
-			Vec3f c = barycentric(proj<2>(pts[0] / pts[0][3]), proj<2>(pts[1] / pts[0][3]), proj<2>(pts[2] / pts[0][3]), P);
+			Vec3f c = barycentric(proj<2>(pts[0] / pts[0][3]), proj<2>(pts[1] / pts[1][3]), proj<2>(pts[2] / pts[2][3]), P);
 			float z = pts[0][2] * c.x + pts[1][2] * c.y + pts[2][2] * c.z;
 			float w = pts[0][3] * c.x + pts[1][3] * c.y + pts[2][3] * c.z;
 			int frag_depth = z / w;

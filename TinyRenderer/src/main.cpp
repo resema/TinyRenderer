@@ -19,7 +19,7 @@ const int width = 800;
 const int height = 800;
 
 //Vec3f light_dir{ 1.f,1.f,1.f };
-Vec3f eye{ 1.2f, -.8f, 3.f };
+Vec3f eye{ 1.2f, 0.8f, 3.f };
 Vec3f center{ 0,0,0 };
 Vec3f up{ 0,1,0 };
 
@@ -32,7 +32,7 @@ struct ZShader : public IShader {
 
 	virtual Vec4f vertex(int iface, int nthvert) {
 		// read the vertex from .obj file and transform it to screen coordinates
-		Vec4f gl_Vertex = Viewport * Projection * ModelView * embed<4>(model->vert(iface, nthvert));
+		Vec4f gl_Vertex = Projection * ModelView * embed<4>(model->vert(iface, nthvert));
 		varying_tri.set_col(nthvert, gl_Vertex / gl_Vertex[3]);
 		// return vertex coordinates
 		return gl_Vertex;
@@ -52,14 +52,14 @@ struct Shader : public IShader {
 
 	virtual Vec4f vertex(int iface, int nthvert) {
 		varying_uv.set_col(nthvert, model->uv(iface, nthvert));
-		Vec4f gl_Vertex = Viewport * Projection * ModelView * embed<4>(model->vert(iface, nthvert));
+		Vec4f gl_Vertex = Projection * ModelView * embed<4>(model->vert(iface, nthvert));
 		varying_tri.set_col(nthvert, gl_Vertex);
 		return gl_Vertex;
 	}
 
 	virtual bool fragment(Vec3f gl_FragCoord, Vec3f bar, TGAColor &color) {
 		Vec2f uv = varying_uv * bar;
-		if (std::abs(shadowbuffer[int(gl_FragCoord.x + gl_FragCoord.y * width)] - gl_FragCoord.z < 1e-2)) {
+		if (shadowbuffer[int(gl_FragCoord.x + gl_FragCoord.y * width)] - gl_FragCoord.z < 1e-2) {
 			occl.set(uv.x * 1024, uv.y * 1024, TGAColor(255));
 		}
 		color = TGAColor(255, 0, 0);
@@ -89,14 +89,56 @@ int main(int argc, char** argv) {
 	shadowbuffer = new float[width*height];		// defined globally -> used in the fragmetn shader
 	model = new Model(argv[1]);
 
-	TGAImage frame(width, height, TGAImage::RGB);
-	lookat(eye, center, up);
-	viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
-	projection(-1.f / (eye - center).norm());
-	for (int i = width*height; --i; ) {
-		zbuffer[i] = shadowbuffer[i] = -std::numeric_limits<float>::max();
-	}
+	const int nrenders = 30;
+	for (int iter = 1; iter <= nrenders; iter++) {
+		std::cerr << iter << " from " << nrenders << std::endl;
+		for (int i = 0; i < 3; i++) 
+			up[i] = (float)rand() / (float)RAND_MAX;
+		eye = rand_point_on_unit_sphere();
+		eye.y = std::abs(eye.y);
+		std::cout << "v " << eye << std::endl;
 
+		for (int i = width*height; --i; ) {
+			zbuffer[i] = shadowbuffer[i] = -std::numeric_limits<float>::max();
+		}
+
+		TGAImage frame(width, height, TGAImage::RGB);
+		lookat(eye, center, up);
+		viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
+		projection(0); //-1.f / (eye - center).norm());
+
+		// first pass
+		ZShader zshader;
+		for (int i = 0; i < model->nfaces(); i++) {
+			for (int j = 0; j < 3; j++) {
+				zshader.vertex(i,j);
+			}
+			triangle(zshader.varying_tri, zshader, frame, shadowbuffer);
+		}
+		frame.flip_vertically();
+		frame.write_tga_file("framebuffer.tga");
+
+		// second pass
+		Shader shader;
+		occl.clear();
+		for (int i = 0; i < model->nfaces(); i++) {
+			for (int j = 0; j < 3; j++) {
+				shader.vertex(i,j);
+			}
+			triangle(shader.varying_tri, shader, frame, zbuffer);
+		}
+
+		for (int i = 0; i < 1024; i++) {
+			for (int j = 0; j < 1024; j++) {
+				float tmp = total.get(i,j)[0];
+				total.set(i, j, TGAColor((tmp * (iter-1) + occl.get(i,j)[0]) / (float)iter + .5f));
+			}
+		}
+	}
+	total.flip_vertically();
+	total.write_tga_file("occlusion.tga");
+	occl.flip_vertically();
+	occl.write_tga_file("occl.tga");
 
 	delete model;
 	delete [] shadowbuffer;

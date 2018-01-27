@@ -14,6 +14,9 @@ OBJECTS = $(patsubst %.cpp,%.o,$(wildcard src/*.cpp))
 
 all: $(DESTDIR)$(TARGET)
 
+debug: CPPFLAGS += -g
+debug: $(DESTDIR)$(TARGET)
+
 # Rule to create the executable
 $(DESTDIR)$(TARGET): $(OBJECTS)
 	$(SYSCONF_LINK) -Wall $(LDFLAGS) -o $(DESTDIR)$(TARGET) $(OBJECTS) $(LIBS)

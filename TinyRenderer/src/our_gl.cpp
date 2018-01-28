@@ -82,12 +82,18 @@ void triangle(mat<4,3,float> &clipc, IShader &shader, TGAImage &image, float *zb
         for (P.y=bboxmin.y; P.y<=bboxmax.y; P.y++) {
             Vec3f bc_screen  = barycentric(pts2[0], pts2[1], pts2[2], P);
             Vec3f bc_clip    = Vec3f(bc_screen.x/pts[0][3], bc_screen.y/pts[1][3], bc_screen.z/pts[2][3]);
-            bc_clip = bc_clip/(bc_clip.x+bc_clip.y+bc_clip.z);
+            // normalized bc coordinates (Vec3)
+			bc_clip = bc_clip/(bc_clip.x+bc_clip.y+bc_clip.z);
+			// scalar product betwwen 2nd row (z-values) and normalized bc coord
             float frag_depth = clipc[2]*bc_clip;
+			// if not in front, skip it
             if (bc_screen.x<0 || bc_screen.y<0 || bc_screen.z<0 || zbuffer[P.x+P.y*image.get_width()]>frag_depth) continue;
-            bool discard = shader.fragment(Vec3f(P.x, P.y, frag_depth), bc_clip, color);
+            // determine the color of the current pixel
+			bool discard = shader.fragment(Vec3f(P.x, P.y, frag_depth), bc_clip, color);
             if (!discard) {
+				// set zbuffer value
                 zbuffer[P.x+P.y*image.get_width()] = frag_depth;
+				// draw pixel
                 image.set(P.x, P.y, color);
             }
         }

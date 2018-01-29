@@ -3,6 +3,9 @@
 
 #include <fstream>
 
+#define _USE_MATH_DEFINES
+#include "math.h"
+
 #pragma pack(push,1)
 struct TGA_Header {
 	char idlength;
@@ -102,6 +105,7 @@ public:
 	int get_bytespp();
 	unsigned char *buffer();
 	void clear();
+	void gaussian_blur(const int radius);
 };
 
 #endif //__IMAGE_H__

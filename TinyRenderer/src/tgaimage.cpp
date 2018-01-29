@@ -359,6 +359,7 @@ bool TGAImage::scale(int w, int h) {
 	return true;
 }
 
+// https://en.wikipedia.org/wiki/Gaussian_filter
 float* gaussian_kernel(const int radius)
 {
 	int size = (radius * 2) + 1;
@@ -371,7 +372,7 @@ float* gaussian_kernel(const int radius)
 		gaussian_kernel[i] = norm * exp(powl(i - radius, 2) * coeff);
 		sum += gaussian_kernel[i];
 	}
-	for (int i = size; i--, gaussian_kernel[i] /= sum);
+	for (int i = size; i--; gaussian_kernel[i] /= sum);
 	return gaussian_kernel;
 }
 

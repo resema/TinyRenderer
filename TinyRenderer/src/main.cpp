@@ -4,9 +4,6 @@
 #include <cstdlib>
 #include <limits>
 
-#define _USE_MATH_DEFINES
-#include "math.h"
-
 #include "tgaimage.h"
 #include "model.h"
 #include "geometry.h"
@@ -19,7 +16,7 @@ const int width = 800;
 const int height = 800;
 
 //Vec3f light_dir{ 1.f,1.f,1.f };
-Vec3f eye{ 1.2f, 0.8f, 3.f };
+Vec3f eye{ 1.2f, -0.8f, 3.f };
 Vec3f center{ 0,0,0 };
 Vec3f up{ 0,1,0 };
 
@@ -39,65 +36,26 @@ struct ZShader : public IShader {
 	}
 
 	virtual bool fragment(Vec3f gl_FragCoord, Vec3f bar, TGAColor &color) {
-		color = TGAColor(255, 255, 255) * ((gl_FragCoord.z + 1.f) / 2.f);
+		color = TGAColor(0, 0, 0);
 		// no, we do not discard this pixel
 		return false;
 	}
 };
 
-struct Shader : public IShader {
-	mat<2, 3, float> varying_uv;		// triangle uv coordinates, written by the VS read by the FS
-	mat<4, 3, float> varying_tri;		// triangle coordinates before Viewport transform, written by VS, read by FS
+float max_elevation_angle(float *zbuffer, Vec2f p, Vec2f dir) {
+	float maxangle = 0;
+	for (float t = 0.f; t < 1000.f; t += 1.f) {
+		Vec2f cur = p + dir*t;
+		if (cur.x >= width || cur.y >= height || cur.x < 0 || cur.y < 0)
+			return maxangle;
 
-
-	virtual Vec4f vertex(int iface, int nthvert) {
-		varying_uv.set_col(nthvert, model->uv(iface, nthvert));
-		Vec4f gl_Vertex = Projection * ModelView * embed<4>(model->vert(iface, nthvert));
-		varying_tri.set_col(nthvert, gl_Vertex);
-		return gl_Vertex;
+		float distance = (p - cur).norm();
+		if (distance < 1.f) continue;
+		float elevation = zbuffer[int(cur.x) + int(cur.y) * width] - zbuffer[int(p.x) + int(p.y) * width];
+		maxangle = std::max(maxangle, atanf(elevation / distance));
 	}
 
-	virtual bool fragment(Vec3f gl_FragCoord, Vec3f bar, TGAColor &color) {
-		Vec2f uv = varying_uv * bar;
-		if (shadowbuffer[int(gl_FragCoord.x + gl_FragCoord.y * width)] - gl_FragCoord.z < 1e-2) {
-			occl.set(uv.x * 1024, uv.y * 1024, TGAColor(255));
-		}
-		// not used in any frame
-		color = TGAColor(255, 0, 0);
-		return false;
-	}
-};
-
-struct AOShader : public IShader {
-	mat<2,3,float> varying_uv;
-	mat<4,3,float> varying_tri;
-	TGAImage aoimage;
-
-	virtual Vec4f vertex(int iface, int nthvert) {
-		varying_uv.set_col(nthvert, model->uv(iface, nthvert));
-		Vec4f gl_Vertex = Projection * ModelView * embed<4>(model->vert(iface, nthvert));
-		varying_tri.set_col(nthvert, gl_Vertex);
-		return gl_Vertex;
-	}
-
-	virtual bool fragment(Vec3f gl_FragCoord, Vec3f bar, TGAColor &color) {
-		Vec2f uv = varying_uv * bar;
-		int t = aoimage.get(uv.x * 1024, uv.y * 1024)[0];
-		color = TGAColor(t, t, t);
-		return false;
-	}
-};
-
-Vec3f rand_point_on_unit_sphere() {
-	float u = (float)rand() / (float)RAND_MAX;
-	float v = (float)rand() / (float)RAND_MAX;
-	float theta = 2.f * M_PI * u;
-	float phi = acos(2.f * v - 1.f);
-	// convert spherical coordinates to cartesian coordinate
-	//  x = rsin(phi)cos(theta)
-	//  y = rsin(phi)sin(theta)
-	//  z = rcos(phi)
-	return Vec3f(sin(phi) * cos(theta), sin(phi) * sin(theta), cos(phi));
+	return maxangle;
 }
 
 int main(int argc, char** argv) {
@@ -107,85 +65,41 @@ int main(int argc, char** argv) {
 	}
 
 	float *zbuffer = new float[width*height];
-	shadowbuffer = new float[width*height];		// defined globally -> used in the fragmetn shader
+	for (int i = width*height; --i; ) {
+		zbuffer[i] = -std::numeric_limits<float>::max();
+	}
 	model = new Model(argv[1]);
 
 	TGAImage frame(width, height, TGAImage::RGB);
 	lookat(eye, center, up);
 	viewport(width/8, height/8, width*3/4, height*3/4);
 	projection(-1.f / (eye-center).norm());
-	for (int i = width*height; --i; ) {
-			zbuffer[i] = -std::numeric_limits<float>::max();
-		}
-
-	AOShader aoshader;
-	aoshader.aoimage.read_tga_file("occlusion.tga");
-	aoshader.aoimage.flip_vertically();
+	
+	ZShader zshader;
 	for (int i = 0; i < model->nfaces(); i++) {
 		for (int j = 0; j < 3; j++) {
-			aoshader.vertex(i, j);
+			zshader.vertex(i, j);
 		}
-		triangle(aoshader.varying_tri, aoshader, frame, zbuffer);
+		triangle(zshader.varying_tri, zshader, frame, zbuffer);
 	}
+
+	for (int x = 0; x < width; x++) {
+		for (int y = 0; y < height; y++) {
+			if (zbuffer[x + y * width] < -1e5) continue;
+			float total = 0;
+			for (float a = 0.f; a < M_PI * 2 - 1e-4; a += M_PI / 4) {
+				total += M_PI / 2 - max_elevation_angle(zbuffer, Vec2f(x, y), Vec2f(cos(a), sin(a)));
+			}
+			total /= (M_PI / 2) * 8;
+			total = pow(total, 100.f);
+			frame.set(x, y, TGAColor(total * 255, total * 255, total * 255));
+		}
+	}
+	
 	frame.flip_vertically();
 	frame.write_tga_file("framebuffer.tga");
-	return 0;
-	// **********************************************************
-
-	const int nrenders = 500;
-	for (int iter = 1; iter <= nrenders; iter++) {
-		std::cerr << iter << " from " << nrenders << std::endl;
-		for (int i = 0; i < 3; i++) 
-			up[i] = (float)rand() / (float)RAND_MAX;
-		eye = rand_point_on_unit_sphere();
-		eye.y = std::abs(eye.y);
-		std::cout << "v " << eye << std::endl;
-
-		for (int i = width*height; --i; ) {
-			zbuffer[i] = shadowbuffer[i] = -std::numeric_limits<float>::max();
-		}
-
-		TGAImage frame(width, height, TGAImage::RGB);
-		lookat(eye, center, up);
-		viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
-		projection(0); //-1.f / (eye - center).norm());
-
-		// first pass
-		ZShader zshader;
-		for (int i = 0; i < model->nfaces(); i++) {
-			for (int j = 0; j < 3; j++) {
-				zshader.vertex(i,j);
-			}
-			triangle(zshader.varying_tri, zshader, frame, shadowbuffer);
-		}
-		frame.flip_vertically();
-		frame.write_tga_file("framebuffer.tga");
-
-		// second pass
-		Shader shader;
-		occl.clear();
-		for (int i = 0; i < model->nfaces(); i++) {
-			for (int j = 0; j < 3; j++) {
-				shader.vertex(i,j);
-			}
-			triangle(shader.varying_tri, shader, frame, zbuffer);
-		}
-
-		for (int i = 0; i < 1024; i++) {
-			for (int j = 0; j < 1024; j++) {
-				float tmp = total.get(i,j)[0];
-				// sum up occlusion map regarding a weighted average 
-				total.set(i, j, TGAColor((tmp * (iter-1) + occl.get(i,j)[0]) / (float)iter + .5f));
-			}
-		}
-	}
-	total.flip_vertically();
-	total.write_tga_file("occlusion.tga");
-	occl.flip_vertically();
-	occl.write_tga_file("occl.tga");
 
 	delete model;
-	delete [] shadowbuffer;
 	delete [] zbuffer;
 	return 0;
 }

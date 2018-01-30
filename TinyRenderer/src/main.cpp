@@ -50,6 +50,7 @@ float max_elevation_angle(float *zbuffer, Vec2f p, Vec2f dir) {
 		if (cur.x >= width || cur.y >= height || cur.x < 0 || cur.y < 0)
 			return maxangle;
 
+		// find the pixel with a distance of 1 (unit circle)
 		float distance = (p - cur).norm();
 		if (distance < 1.f) continue;
 		float elevation = zbuffer[int(cur.x) + int(cur.y) * width] - zbuffer[int(p.x) + int(p.y) * width];

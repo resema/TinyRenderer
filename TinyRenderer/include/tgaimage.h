@@ -5,6 +5,7 @@
 
 #define _USE_MATH_DEFINES
 #include "math.h"
+#include <cmath>
 
 #pragma pack(push,1)
 struct TGA_Header {

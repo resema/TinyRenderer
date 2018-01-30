@@ -26,8 +26,10 @@ TGAImage  occl(1024, 1024, TGAImage::GRAYSCALE);
 struct ZShader : public IShader {
 	// triangle coordinates (clip coordinates), written by VS, read by FS
 	mat<4, 3, float> varying_tri;
+	mat<2, 3, float> varying_uv;
 
 	virtual Vec4f vertex(int iface, int nthvert) {
+		varying_uv.set_col(nthvert, model->uv(iface, nthvert));
 		// read the vertex from .obj file and transform it to screen coordinates
 		Vec4f gl_Vertex = Projection * ModelView * embed<4>(model->vert(iface, nthvert));
 		varying_tri.set_col(nthvert, gl_Vertex / gl_Vertex[3]);
@@ -36,7 +38,10 @@ struct ZShader : public IShader {
 	}
 
 	virtual bool fragment(Vec3f gl_FragCoord, Vec3f bar, TGAColor &color) {
-		color = TGAColor(0, 0, 0);
+		// interpolate uv for current pixel
+		Vec2f uv = varying_uv * bar;
+		TGAColor c = model->diffuse(uv);
+		color = c;
 		// no, we do not discard this pixel
 		return false;
 	}
@@ -85,6 +90,7 @@ int main(int argc, char** argv) {
 		triangle(zshader.varying_tri, zshader, frame, zbuffer);
 	}
 
+	// Post processing step
 	for (int x = 0; x < width; x++) {
 		for (int y = 0; y < height; y++) {
 			if (zbuffer[x + y * width] < -1e5) continue;
@@ -96,7 +102,8 @@ int main(int argc, char** argv) {
 			}
 			total /= (M_PI / 2) * 8;
 			total = pow(total, 100.f);
-			frame.set(x, y, TGAColor(total * 255, total * 255, total * 255));
+			TGAColor c = frame.get(x, y);
+			frame.set(x, y, TGAColor(total * c.bgra[2], total * c.bgra[1], total * c.bgra[0]));
 		}
 	}
 	

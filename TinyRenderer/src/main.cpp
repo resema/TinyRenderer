@@ -87,7 +87,9 @@ int main(int argc, char** argv) {
 		for (int y = 0; y < height; y++) {
 			if (zbuffer[x + y * width] < -1e5) continue;
 			float total = 0;
+			// 8 ray cast in each direction around the current pixel
 			for (float a = 0.f; a < M_PI * 2 - 1e-4; a += M_PI / 4) {
+				// solid angle approximation
 				total += M_PI / 2 - max_elevation_angle(zbuffer, Vec2f(x, y), Vec2f(cos(a), sin(a)));
 			}
 			total /= (M_PI / 2) * 8;

@@ -44,6 +44,7 @@ struct ZShader : public IShader {
 
 float max_elevation_angle(float *zbuffer, Vec2f p, Vec2f dir) {
 	float maxangle = 0;
+	// search the max elevation angle for the current pixel in direction dir
 	for (float t = 0.f; t < 1000.f; t += 1.f) {
 		Vec2f cur = p + dir*t;
 		if (cur.x >= width || cur.y >= height || cur.x < 0 || cur.y < 0)

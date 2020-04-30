@@ -1,0 +1,8 @@
+*.srctrlbm
+*.srctrldb
+*.srctrlprj
+*.json
+*.tga
+*.obj
+CMakeLists.txt
+build/

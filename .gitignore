@@ -1,6 +1,7 @@
 *.srctrlbm
 *.srctrldb
 *.srctrlprj
+*.orig
 *.json
 *.tga
 *.obj

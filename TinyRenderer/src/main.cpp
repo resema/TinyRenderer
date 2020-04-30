@@ -10,23 +10,26 @@
 #include "our_gl.h"
 
 Model *model = NULL;
-float *shadowbuffer = NULL;
 
 const int width = 800;
 const int height = 800;
 
-//Vec3f light_dir{ 1.f,1.f,1.f };
-Vec3f eye( 1.2f, -0.8f, 3.f );
-Vec3f center( 0,0,0 );
-Vec3f up( 0,1,0 );
+Vec3f light_dir{ 1.f, 1.f, 2.f };
+Vec3f eye{ 1.2f, -0.8f, 3.f };
+Vec3f center{ 0,0,0 };
+Vec3f up{ 0,1,0 };
 
 TGAImage total(1024, 1024, TGAImage::GRAYSCALE);
 TGAImage  occl(1024, 1024, TGAImage::GRAYSCALE);
 
 struct ZShader : public IShader {
+	mat<4, 4, float> uniform_M;
+	mat<4, 4, float> uniform_MIT;
 	// triangle coordinates (clip coordinates), written by VS, read by FS
 	mat<4, 3, float> varying_tri;
 	mat<2, 3, float> varying_uv;
+
+	ZShader(Matrix M, Matrix MIT) : uniform_M(M), uniform_MIT(MIT) {}
 
 	virtual Vec4f vertex(int iface, int nthvert) {
 		varying_uv.set_col(nthvert, model->uv(iface, nthvert));
@@ -40,8 +43,19 @@ struct ZShader : public IShader {
 	virtual bool fragment(Vec3f gl_FragCoord, Vec3f bar, TGAColor &color) {
 		// interpolate uv for current pixel
 		Vec2f uv = varying_uv * bar;
+		Vec3f n = proj<3>(uniform_MIT * embed<4>(model->normal(uv))).normalize();
+		Vec3f l = proj<3>(uniform_M   * embed<4>(light_dir		  )).normalize();
+		// reflected light
+		Vec3f r = (n * (n * l * 2.f) - l).normalize();
+		// specular light
+		float spec = pow(std::max(r.z, 0.f), model->specular(uv));
+		// diffuse light
+		float diff = std::max(0.f, n * l);
+		// color from the diffuse map
 		TGAColor c = model->diffuse(uv);
-		color = c;
+		for (int i = 0; i < 3; i++) {
+			color[i] = std::min<float>(c[i] * (1.2*diff + 0.6*spec), 255);
+		}
 		// no, we do not discard this pixel
 		return false;
 	}
@@ -82,7 +96,7 @@ int main(int argc, char** argv) {
 	viewport(width/8, height/8, width*3/4, height*3/4);
 	projection(-1.f / (eye-center).norm());
 	
-	ZShader zshader;
+	ZShader zshader(ModelView, (Projection * ModelView).invert_transpose());
 	for (int i = 0; i < model->nfaces(); i++) {
 		for (int j = 0; j < 3; j++) {
 			zshader.vertex(i, j);
